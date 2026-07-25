@@ -202,3 +202,6 @@ app.listen(PORT, () => {
     console.warn('WARNING: GEMINI_API_KEY is not set. Create a .env file from .env.example');
   }
 });
+
+
+module.exports = app;
