@@ -1,21 +1,12 @@
 {
   "name": "ai-writing-drawing-board",
   "version": "1.0.0",
-  "description": "Basic AI Writing & Drawing Board using Gemini API, Express, and Fabric.js",
-  "main": "server.js",
+  "description": "AI Writing & Drawing Board using Gemini API, Express and Fabric.js",
+  "main": "api/index.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node api/index.js",
+    "dev": "node api/index.js"
   },
-  "keywords": [
-    "gemini",
-    "fabric.js",
-    "drawing",
-    "ai",
-    "express"
-  ],
-  "author": "",
-  "license": "MIT",
   "dependencies": {
     "@google/genai": "^2.13.0",
     "dotenv": "^16.4.5",

@@ -43,7 +43,6 @@
       font-size: 1.25rem;
       font-weight: 600;
       color: var(--accent);
-      letter-spacing: -0.02em;
     }
 
     .key-box {
@@ -228,17 +227,17 @@
     <h1>AI Writing & Drawing Board</h1>
 
     <div class="key-box">
-      <input id="api-key-input" type="password" placeholder="Gemini API Key" />
+      <input id="api-key-input" type="password" placeholder="Paste Gemini API Key" />
       <button id="btn-save-key">Save Key</button>
     </div>
 
     <div class="toolbar">
-      <button id="btn-brush" class="active" title="Freehand drawing mode">✏️ Brush</button>
-      <button id="btn-select" title="Select & move objects">🖱️ Select</button>
-      <button id="btn-clean" class="primary" title="Clean up handwritten text with AI">✨ Clean Writing</button>
-      <button id="btn-shape" class="primary" title="Detect & perfect shapes with AI">🔷 Perfect Shape</button>
-      <button id="btn-solve" class="primary" title="Solve the question on the board">🧮 Solve Question</button>
-      <button id="btn-clear" class="danger" title="Clear the entire board">🗑️ Clear Board</button>
+      <button id="btn-brush" class="active">✏️ Brush</button>
+      <button id="btn-select">🖱️ Select</button>
+      <button id="btn-clean" class="primary">✨ Clean Writing</button>
+      <button id="btn-shape" class="primary">🔷 Perfect Shape</button>
+      <button id="btn-solve" class="primary">🧮 Solve Question</button>
+      <button id="btn-clear" class="danger">🗑️ Clear Board</button>
     </div>
   </header>
 
@@ -259,18 +258,16 @@
   </div>
 
   <footer>
-    Powered by Gemini 2.5 Flash · Fabric.js · Express
+    Powered by Gemini 2.5 Flash · Fabric.js · Express · Works on Vercel & Localhost
   </footer>
 
   <script>
-    // ---------- API Key handling ----------
+    // ---------- API Key ----------
     const apiKeyInput = document.getElementById('api-key-input');
     const btnSaveKey  = document.getElementById('btn-save-key');
 
     const savedKey = localStorage.getItem('gemini_api_key');
-    if (savedKey) {
-      apiKeyInput.value = savedKey;
-    }
+    if (savedKey) apiKeyInput.value = savedKey;
 
     btnSaveKey.addEventListener('click', () => {
       const key = apiKeyInput.value.trim();
@@ -283,7 +280,7 @@
       }
     });
 
-    // ---------- Canvas setup ----------
+    // ---------- Canvas ----------
     const wrapper = document.querySelector('.canvas-wrapper');
 
     function resizeCanvas() {
@@ -306,7 +303,7 @@
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    // ---------- Mode toggle ----------
+    // ---------- Mode ----------
     const btnBrush = document.getElementById('btn-brush');
     const btnSelect = document.getElementById('btn-select');
     const modeStatus = document.getElementById('mode-status');
@@ -344,13 +341,11 @@
 
     // ---------- Helpers ----------
     function removeFreehandPaths() {
-      const paths = canvas.getObjects().filter(o => o.type === 'path');
-      paths.forEach(o => canvas.remove(o));
+      canvas.getObjects().filter(o => o.type === 'path').forEach(o => canvas.remove(o));
     }
 
     function removeAIObjects() {
-      const aiObjects = canvas.getObjects().filter(o => o.aiGenerated === true);
-      aiObjects.forEach(o => canvas.remove(o));
+      canvas.getObjects().filter(o => o.aiGenerated === true).forEach(o => canvas.remove(o));
     }
 
     function drawPerfectShapes(shapes) {
@@ -369,37 +364,26 @@
         switch (s.type) {
           case 'circle':
             obj = new fabric.Circle({
-              left: s.left || 50,
-              top: s.top || 50,
-              radius: s.radius || 40,
-              ...common
+              left: s.left || 50, top: s.top || 50,
+              radius: s.radius || 40, ...common
             });
             break;
           case 'ellipse':
             obj = new fabric.Ellipse({
-              left: s.left || 50,
-              top: s.top || 50,
-              rx: (s.width || 80) / 2,
-              ry: (s.height || 50) / 2,
-              ...common
+              left: s.left || 50, top: s.top || 50,
+              rx: (s.width || 80) / 2, ry: (s.height || 50) / 2, ...common
             });
             break;
           case 'rect':
             obj = new fabric.Rect({
-              left: s.left || 50,
-              top: s.top || 50,
-              width: s.width || 100,
-              height: s.height || 60,
-              ...common
+              left: s.left || 50, top: s.top || 50,
+              width: s.width || 100, height: s.height || 60, ...common
             });
             break;
           case 'triangle':
             obj = new fabric.Triangle({
-              left: s.left || 50,
-              top: s.top || 50,
-              width: s.width || 100,
-              height: s.height || 80,
-              ...common
+              left: s.left || 50, top: s.top || 50,
+              width: s.width || 100, height: s.height || 80, ...common
             });
             break;
           case 'line':
@@ -409,7 +393,6 @@
             );
             break;
         }
-
         if (obj) canvas.add(obj);
       });
     }
@@ -418,16 +401,15 @@
       removeFreehandPaths();
       removeAIObjects();
 
-      const text = (data && data.cleanedText) ? data.cleanedText : '';
+      const text = data?.cleanedText || '';
       if (!text) return;
 
-      const left = (data && typeof data.left === 'number') ? data.left : 20;
-      const top  = (data && typeof data.top  === 'number') ? data.top  : 20;
-      const w    = (data && typeof data.width === 'number') ? Math.max(data.width, 200) : canvas.width - 40;
+      const left = data?.left ?? 20;
+      const top  = data?.top ?? 20;
+      const w    = Math.max(data?.width || 200, 200);
 
       const textObj = new fabric.Textbox(text, {
-        left,
-        top,
+        left, top,
         width: Math.min(w, canvas.width - left - 20),
         fontSize: 18,
         fill: '#0f172a',
@@ -440,12 +422,8 @@
       canvas.setActiveObject(textObj);
     }
 
-    /** Place ONLY the final answer below the question */
     function placeSolution(data) {
-      const answer = (data && data.finalAnswer)
-        ? data.finalAnswer
-        : (data && data.solution ? data.solution : '');
-
+      const answer = data?.finalAnswer || data?.solution || '';
       if (!answer) return;
 
       let maxBottom = 40;
@@ -454,14 +432,13 @@
         if (bottom > maxBottom) maxBottom = bottom;
       });
 
-      const left = (data && typeof data.left === 'number') ? data.left : 20;
-      let top = (data && typeof data.top === 'number') ? data.top : maxBottom + 30;
+      const left = data?.left ?? 20;
+      let top = data?.top ?? maxBottom + 30;
       if (top < maxBottom + 10) top = maxBottom + 30;
       if (top > canvas.height - 80) top = Math.max(20, canvas.height - 120);
 
       const textObj = new fabric.Textbox(answer, {
-        left,
-        top,
+        left, top,
         width: Math.min(420, canvas.width - left - 30),
         fontSize: 22,
         fontWeight: 'bold',
@@ -499,8 +476,8 @@
       try {
         const dataURL = canvas.toDataURL({
           format: 'png',
-          quality: 0.92,
-          multiplier: 1.5
+          quality: 0.9,
+          multiplier: 1.2
         });
 
         const res = await fetch('/api/process-canvas', {
@@ -525,29 +502,24 @@
 
         if (action === 'clean-text') {
           placeCleanedText(structured);
-          outputEl.textContent = structured
-            ? (structured.cleanedText || 'No text found.')
-            : (payload.result || 'Could not parse cleaned text.');
+          outputEl.textContent = structured?.cleanedText || payload.result || 'No text found.';
         }
         else if (action === 'detect-shape') {
           removeFreehandPaths();
-          if (structured && Array.isArray(structured.shapes)) {
+          if (structured?.shapes) {
             drawPerfectShapes(structured.shapes);
-            outputEl.textContent = structured.summary
-              || `Detected ${structured.shapes.length} shape(s) and replaced them with perfect versions.`;
+            outputEl.textContent = structured.summary || `Detected ${structured.shapes.length} shape(s).`;
           } else {
             outputEl.textContent = payload.result || 'Could not detect shapes.';
           }
         }
         else if (action === 'solve') {
           placeSolution(structured);
-
           if (structured) {
-            const full = (structured.solution || '') +
+            outputEl.textContent = (structured.solution || '') +
               (structured.finalAnswer ? '\n\nFinal Answer: ' + structured.finalAnswer : '');
-            outputEl.textContent = full || 'No solution generated.';
           } else {
-            outputEl.textContent = payload.result || 'Could not parse solution.';
+            outputEl.textContent = payload.result || 'No solution generated.';
           }
         }
 

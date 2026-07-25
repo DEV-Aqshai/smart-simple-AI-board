@@ -7,18 +7,20 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(express.json({ limit: '15mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json({ limit: '10mb' }));
+
+// Serve static files from /public (works on localhost)
+app.use(express.static(path.join(__dirname, '../public')));
 
 /**
- * Create a Gemini client with a given API key
+ * Create Gemini client
  */
 function createAI(apiKey) {
   return new GoogleGenAI({ apiKey });
 }
 
 /**
- * Helper: try to extract JSON from model response (handles markdown fences)
+ * Extract JSON from model response
  */
 function extractJSON(text) {
   if (!text) return null;
@@ -41,19 +43,11 @@ function extractJSON(text) {
 
 /**
  * POST /api/process-canvas
- * Body: {
- *   image: string,
- *   action: 'clean-text' | 'detect-shape' | 'solve',
- *   width?: number,
- *   height?: number,
- *   apiKey?: string
- * }
  */
 app.post('/api/process-canvas', async (req, res) => {
   try {
     const { image, action, width = 800, height = 500, apiKey } = req.body;
 
-    // Prefer key from frontend, fallback to .env
     const key = apiKey || process.env.GEMINI_API_KEY;
 
     if (!key) {
@@ -130,7 +124,7 @@ Return ONLY a valid JSON object (no markdown, no extra text) with this exact sch
 
 Rules:
 - Coordinates must be inside the ${width}x${height} canvas.
-- Prefer simple clean shapes. Convert rough freehand drawings into ideal geometry.
+- Prefer simple clean shapes.
 - If nothing recognizable, return { "shapes": [], "summary": "No clear shapes detected" }`;
         break;
 
@@ -146,17 +140,17 @@ Task:
 Return ONLY a valid JSON object (no markdown, no extra text) with this exact schema:
 {
   "solution": "Full step-by-step solution text here.\\nUse \\n for new lines.",
-  "finalAnswer": "Only the final answer, short and clean (e.g. 42 or x = 5 or The capital is Paris)",
+  "finalAnswer": "Only the final answer, short and clean (e.g. 42 or x = 5)",
   "left": number,
   "top": number
 }
 
-Estimate "top" so the final answer appears under the question (use the bottom of the content + ~30px padding).
+Estimate "top" so the final answer appears under the question.
 If the board is mostly empty, use top = ${Math.round(height * 0.55)}.`;
         break;
 
       default:
-        return res.status(400).json({ error: 'Invalid action. Use clean-text, detect-shape, or solve.' });
+        return res.status(400).json({ error: 'Invalid action' });
     }
 
     const response = await ai.models.generateContent({
@@ -168,7 +162,7 @@ If the board is mostly empty, use top = ${Math.round(height * 0.55)}.`;
             { text: prompt },
             {
               inlineData: {
-                mimeType: mimeType,
+                mimeType,
                 data: base64Data
               }
             }
@@ -184,11 +178,10 @@ If the board is mostly empty, use top = ${Math.round(height * 0.55)}.`;
       success: true,
       action,
       data: parsed,
-      result: rawText,
-      fallbackText: parsed ? null : rawText
+      result: rawText
     });
   } catch (error) {
-    console.error('Error processing canvas:', error);
+    console.error('Error:', error);
     res.status(500).json({
       error: 'Failed to process canvas',
       details: error.message || String(error)
@@ -201,22 +194,17 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', model: 'gemini-2.5-flash' });
 });
 
-// Fallback
+// Fallback for local development – serve index.html
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, '../public', 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`AI Writing & Drawing Board running at http://localhost:${PORT}`);
-  if (!process.env.GEMINI_API_KEY) {
-    console.warn('WARNING: No GEMINI_API_KEY in .env — users must enter a key in the UI.');
-  }
-});
-
+// Export for Vercel
 module.exports = app;
 
+// Start server only when running locally
 if (require.main === module) {
   app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`AI Writing & Drawing Board running at http://localhost:${PORT}`);
   });
 }
