@@ -215,9 +215,8 @@ app.listen(PORT, () => {
 
 module.exports = app;
 
-// Only start the server when running locally
 if (require.main === module) {
   app.listen(PORT, () => {
-    console.log(`AI Writing & Drawing Board running at http://localhost:${PORT}`);
+    console.log(`Server running on http://localhost:${PORT}`);
   });
 }
