@@ -14,7 +14,6 @@
       --text: #e2e8f0;
       --muted: #94a3b8;
       --danger: #f87171;
-      --success: #4ade80;
       --border: #334155;
     }
 
@@ -45,6 +44,22 @@
       font-weight: 600;
       color: var(--accent);
       letter-spacing: -0.02em;
+    }
+
+    .key-box {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .key-box input {
+      padding: 0.4rem 0.7rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #0f172a;
+      color: var(--text);
+      width: 220px;
+      font-size: 0.85rem;
     }
 
     .toolbar {
@@ -200,16 +215,23 @@
       border-top: 1px solid var(--border);
     }
 
-    @media (max-width: 640px) {
+    @media (max-width: 768px) {
       header { flex-direction: column; align-items: flex-start; }
       .toolbar { width: 100%; }
       button { flex: 1 1 auto; justify-content: center; }
+      .key-box input { width: 160px; }
     }
   </style>
 </head>
 <body>
   <header>
     <h1>AI Writing & Drawing Board</h1>
+
+    <div class="key-box">
+      <input id="api-key-input" type="password" placeholder="Gemini API Key" />
+      <button id="btn-save-key">Save Key</button>
+    </div>
+
     <div class="toolbar">
       <button id="btn-brush" class="active" title="Freehand drawing mode">✏️ Brush</button>
       <button id="btn-select" title="Select & move objects">🖱️ Select</button>
@@ -241,6 +263,26 @@
   </footer>
 
   <script>
+    // ---------- API Key handling ----------
+    const apiKeyInput = document.getElementById('api-key-input');
+    const btnSaveKey  = document.getElementById('btn-save-key');
+
+    const savedKey = localStorage.getItem('gemini_api_key');
+    if (savedKey) {
+      apiKeyInput.value = savedKey;
+    }
+
+    btnSaveKey.addEventListener('click', () => {
+      const key = apiKeyInput.value.trim();
+      if (key) {
+        localStorage.setItem('gemini_api_key', key);
+        alert('API key saved!');
+      } else {
+        localStorage.removeItem('gemini_api_key');
+        alert('API key cleared.');
+      }
+    });
+
     // ---------- Canvas setup ----------
     const wrapper = document.querySelector('.canvas-wrapper');
 
@@ -301,19 +343,16 @@
     });
 
     // ---------- Helpers ----------
-    /** Remove all freehand drawing paths (the messy ink) */
     function removeFreehandPaths() {
       const paths = canvas.getObjects().filter(o => o.type === 'path');
       paths.forEach(o => canvas.remove(o));
     }
 
-    /** Remove previously added AI text / shapes so we don't stack forever */
     function removeAIObjects() {
       const aiObjects = canvas.getObjects().filter(o => o.aiGenerated === true);
       aiObjects.forEach(o => canvas.remove(o));
     }
 
-    /** Create perfect Fabric shapes from the JSON returned by Gemini */
     function drawPerfectShapes(shapes) {
       if (!Array.isArray(shapes)) return;
 
@@ -336,7 +375,6 @@
               ...common
             });
             break;
-
           case 'ellipse':
             obj = new fabric.Ellipse({
               left: s.left || 50,
@@ -346,7 +384,6 @@
               ...common
             });
             break;
-
           case 'rect':
             obj = new fabric.Rect({
               left: s.left || 50,
@@ -356,7 +393,6 @@
               ...common
             });
             break;
-
           case 'triangle':
             obj = new fabric.Triangle({
               left: s.left || 50,
@@ -366,32 +402,52 @@
               ...common
             });
             break;
-
           case 'line':
             obj = new fabric.Line(
               [s.x1 || 50, s.y1 || 50, s.x2 || 150, s.y2 || 50],
               { ...common }
             );
             break;
-
-          default:
-            console.warn('Unknown shape type:', s.type);
         }
 
         if (obj) canvas.add(obj);
       });
     }
 
-/** Place only the FINAL ANSWER below the existing content (keep the question) */
+    function placeCleanedText(data) {
+      removeFreehandPaths();
+      removeAIObjects();
+
+      const text = (data && data.cleanedText) ? data.cleanedText : '';
+      if (!text) return;
+
+      const left = (data && typeof data.left === 'number') ? data.left : 20;
+      const top  = (data && typeof data.top  === 'number') ? data.top  : 20;
+      const w    = (data && typeof data.width === 'number') ? Math.max(data.width, 200) : canvas.width - 40;
+
+      const textObj = new fabric.Textbox(text, {
+        left,
+        top,
+        width: Math.min(w, canvas.width - left - 20),
+        fontSize: 18,
+        fill: '#0f172a',
+        fontFamily: 'Segoe UI, system-ui, sans-serif',
+        backgroundColor: 'rgba(255,255,255,0.92)',
+        padding: 10,
+        aiGenerated: true
+      });
+      canvas.add(textObj);
+      canvas.setActiveObject(textObj);
+    }
+
+    /** Place ONLY the final answer below the question */
     function placeSolution(data) {
-      // Prefer the short finalAnswer; fall back to full solution if missing
       const answer = (data && data.finalAnswer)
         ? data.finalAnswer
         : (data && data.solution ? data.solution : '');
 
       if (!answer) return;
 
-      // Calculate bottom of current objects so we place the answer underneath
       let maxBottom = 40;
       canvas.getObjects().forEach(o => {
         const bottom = (o.top || 0) + (o.getScaledHeight ? o.getScaledHeight() : (o.height || 0));
@@ -399,11 +455,8 @@
       });
 
       const left = (data && typeof data.left === 'number') ? data.left : 20;
-      // Prefer Gemini's suggested top if it looks reasonable, otherwise put below content
       let top = (data && typeof data.top === 'number') ? data.top : maxBottom + 30;
       if (top < maxBottom + 10) top = maxBottom + 30;
-
-      // Safety: don't go off canvas
       if (top > canvas.height - 80) top = Math.max(20, canvas.height - 120);
 
       const textObj = new fabric.Textbox(answer, {
@@ -414,45 +467,9 @@
         fontWeight: 'bold',
         fill: '#0f172a',
         fontFamily: 'Segoe UI, system-ui, sans-serif',
-        backgroundColor: 'rgba(187, 247, 208, 0.95)', // light green highlight
+        backgroundColor: 'rgba(187, 247, 208, 0.95)',
         padding: 14,
         textAlign: 'center',
-        aiGenerated: true
-      });
-      canvas.add(textObj);
-      canvas.setActiveObject(textObj);
-    }
-
-    /** Place the solution text below the existing content (keep the question) */
-    function placeSolution(data) {
-      const solution = (data && data.solution) ? data.solution : '';
-      if (!solution) return;
-
-      // Calculate bottom of current objects so we place the answer underneath
-      let maxBottom = 40;
-      canvas.getObjects().forEach(o => {
-        const bottom = (o.top || 0) + (o.getScaledHeight ? o.getScaledHeight() : (o.height || 0));
-        if (bottom > maxBottom) maxBottom = bottom;
-      });
-
-      const left = (data && typeof data.left === 'number') ? data.left : 20;
-      // Prefer Gemini's suggested top if it looks reasonable, otherwise put below content
-      let top = (data && typeof data.top === 'number') ? data.top : maxBottom + 30;
-      if (top < maxBottom + 10) top = maxBottom + 30;
-
-      // Safety: don't go off canvas
-      if (top > canvas.height - 80) top = Math.max(20, canvas.height - 120);
-
-      const textObj = new fabric.Textbox(solution, {
-        left,
-        top,
-        width: canvas.width - left - 30,
-        fontSize: 16,
-        fill: '#0f172a',
-        fontFamily: 'Segoe UI, system-ui, sans-serif',
-        backgroundColor: 'rgba(224, 242, 254, 0.95)', // light blue so it stands out
-        padding: 12,
-        borderColor: '#38bdf8',
         aiGenerated: true
       });
       canvas.add(textObj);
@@ -469,6 +486,12 @@
     ];
 
     async function processCanvas(action) {
+      const key = localStorage.getItem('gemini_api_key');
+      if (!key) {
+        alert('Please enter and save your Gemini API key first.');
+        return;
+      }
+
       actionButtons.forEach(b => b.disabled = true);
       loadingEl.classList.add('visible');
       outputEl.textContent = '';
@@ -487,7 +510,8 @@
             image: dataURL,
             action,
             width: canvas.width,
-            height: canvas.height
+            height: canvas.height,
+            apiKey: key
           })
         });
 
@@ -499,7 +523,6 @@
 
         const structured = payload.data;
 
-        // ---- Apply the visual changes on the canvas ----
         if (action === 'clean-text') {
           placeCleanedText(structured);
           outputEl.textContent = structured
@@ -507,9 +530,7 @@
             : (payload.result || 'Could not parse cleaned text.');
         }
         else if (action === 'detect-shape') {
-          // Remove the messy freehand drawings
           removeFreehandPaths();
-          // Draw the perfect versions
           if (structured && Array.isArray(structured.shapes)) {
             drawPerfectShapes(structured.shapes);
             outputEl.textContent = structured.summary
@@ -519,10 +540,8 @@
           }
         }
         else if (action === 'solve') {
-          // Keep the original question drawings, only put the final answer on canvas
           placeSolution(structured);
 
-          // Side panel shows the full reasoning
           if (structured) {
             const full = (structured.solution || '') +
               (structured.finalAnswer ? '\n\nFinal Answer: ' + structured.finalAnswer : '');
@@ -532,12 +551,12 @@
           }
         }
 
-        setMode('select'); // switch to select so user can move the new objects
+        setMode('select');
         canvas.renderAll();
 
       } catch (err) {
         console.error(err);
-        outputEl.textContent = 'Error: ' + (err.message || 'Something went wrong. Check the server and your API key.');
+        outputEl.textContent = 'Error: ' + (err.message || 'Something went wrong.');
       } finally {
         loadingEl.classList.remove('visible');
         actionButtons.forEach(b => b.disabled = false);

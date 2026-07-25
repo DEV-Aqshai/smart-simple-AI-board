@@ -10,17 +10,18 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Initialize Gemini client
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY
-});
+/**
+ * Create a Gemini client with a given API key
+ */
+function createAI(apiKey) {
+  return new GoogleGenAI({ apiKey });
+}
 
 /**
  * Helper: try to extract JSON from model response (handles markdown fences)
  */
 function extractJSON(text) {
   if (!text) return null;
-  // Remove markdown code fences if present
   let cleaned = text.trim();
   const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (fenceMatch) cleaned = fenceMatch[1].trim();
@@ -28,7 +29,6 @@ function extractJSON(text) {
   try {
     return JSON.parse(cleaned);
   } catch (e) {
-    // Fallback: try to find the first { ... } block
     const braceMatch = cleaned.match(/\{[\s\S]*\}/);
     if (braceMatch) {
       try {
@@ -42,19 +42,31 @@ function extractJSON(text) {
 /**
  * POST /api/process-canvas
  * Body: {
- *   image: string (data URL or pure base64),
+ *   image: string,
  *   action: 'clean-text' | 'detect-shape' | 'solve',
  *   width?: number,
- *   height?: number
+ *   height?: number,
+ *   apiKey?: string
  * }
  */
 app.post('/api/process-canvas', async (req, res) => {
   try {
-    const { image, action, width = 800, height = 500 } = req.body;
+    const { image, action, width = 800, height = 500, apiKey } = req.body;
+
+    // Prefer key from frontend, fallback to .env
+    const key = apiKey || process.env.GEMINI_API_KEY;
+
+    if (!key) {
+      return res.status(401).json({
+        error: 'No Gemini API key provided. Please enter your key in the app.'
+      });
+    }
 
     if (!image || !action) {
       return res.status(400).json({ error: 'Missing image or action' });
     }
+
+    const ai = createAI(key);
 
     // Extract pure base64
     let base64Data = image;
@@ -81,9 +93,9 @@ Task:
 Return ONLY a valid JSON object (no markdown, no extra text) with this exact schema:
 {
   "cleanedText": "the neat cleaned text here (preserve line breaks with \\n)",
-  "left": number,   // approximate left position of the text block
-  "top": number,    // approximate top position of the text block
-  "width": number   // approximate width of the text block
+  "left": number,
+  "top": number,
+  "width": number
 }
 
 If no text is found, return: { "cleanedText": "", "left": 20, "top": 20, "width": 400 }`;
@@ -104,10 +116,10 @@ Return ONLY a valid JSON object (no markdown, no extra text) with this exact sch
       "type": "circle" | "ellipse" | "rect" | "triangle" | "line",
       "left": number,
       "top": number,
-      "width": number,      // for rect / ellipse / triangle
-      "height": number,     // for rect / ellipse / triangle
-      "radius": number,     // for circle
-      "x1": number, "y1": number, "x2": number, "y2": number,  // for line
+      "width": number,
+      "height": number,
+      "radius": number,
+      "x1": number, "y1": number, "x2": number, "y2": number,
       "stroke": "#1e293b",
       "strokeWidth": 3,
       "fill": "transparent"
@@ -135,8 +147,8 @@ Return ONLY a valid JSON object (no markdown, no extra text) with this exact sch
 {
   "solution": "Full step-by-step solution text here.\\nUse \\n for new lines.",
   "finalAnswer": "Only the final answer, short and clean (e.g. 42 or x = 5 or The capital is Paris)",
-  "left": number,   // recommended left position to place the answer (usually 20)
-  "top": number     // recommended top position — place it BELOW the original question
+  "left": number,
+  "top": number
 }
 
 Estimate "top" so the final answer appears under the question (use the bottom of the content + ~30px padding).
@@ -147,7 +159,6 @@ If the board is mostly empty, use top = ${Math.round(height * 0.55)}.`;
         return res.status(400).json({ error: 'Invalid action. Use clean-text, detect-shape, or solve.' });
     }
 
-    // Call Gemini
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: [
@@ -169,12 +180,11 @@ If the board is mostly empty, use top = ${Math.round(height * 0.55)}.`;
     const rawText = response.text || '';
     const parsed = extractJSON(rawText);
 
-    // Always return both the structured data and a readable fallback
     res.json({
       success: true,
       action,
-      data: parsed,               // structured object (or null)
-      result: rawText,            // original text for the side panel
+      data: parsed,
+      result: rawText,
       fallbackText: parsed ? null : rawText
     });
   } catch (error) {
@@ -199,9 +209,8 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`AI Writing & Drawing Board running at http://localhost:${PORT}`);
   if (!process.env.GEMINI_API_KEY) {
-    console.warn('WARNING: GEMINI_API_KEY is not set. Create a .env file from .env.example');
+    console.warn('WARNING: No GEMINI_API_KEY in .env — users must enter a key in the UI.');
   }
 });
-
 
 module.exports = app;
