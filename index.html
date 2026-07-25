@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Writing & Drawing Board</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --accent: #38bdf8;
+      --accent-hover: #0ea5e9;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --danger: #f87171;
+      --success: #4ade80;
+      --border: #334155;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: var(--panel);
+      padding: 0.75rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: -0.02em;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    button {
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 0.45rem 0.85rem;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    button:hover:not(:disabled) {
+      background: #334155;
+      border-color: var(--accent);
+    }
+
+    button.active {
+      background: var(--accent);
+      color: #0f172a;
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    button.primary {
+      background: var(--accent);
+      color: #0f172a;
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+
+    button.primary:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    button.danger {
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    button.danger:hover:not(:disabled) {
+      background: rgba(248, 113, 113, 0.15);
+    }
+
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 1rem;
+      gap: 1rem;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .canvas-wrapper {
+      background: #fff;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+      position: relative;
+      flex: 1;
+      min-height: 420px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #c { display: block; max-width: 100%; touch-action: none; }
+
+    .status {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(15, 23, 42, 0.75);
+      color: #fff;
+      padding: 0.3rem 0.6rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      pointer-events: none;
+    }
+
+    .output-panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      min-height: 120px;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+
+    .output-panel h2 {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-bottom: 0.6rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    #ai-output {
+      white-space: pre-wrap;
+      line-height: 1.55;
+      font-size: 0.95rem;
+    }
+
+    #ai-output:empty::before {
+      content: 'AI responses will appear here after you use Clean Writing, Perfect Shape, or Solve Question.';
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    .loading {
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--accent);
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+    }
+
+    .loading.visible { display: flex; }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    footer {
+      text-align: center;
+      padding: 0.6rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+
+    @media (max-width: 640px) {
+      header { flex-direction: column; align-items: flex-start; }
+      .toolbar { width: 100%; }
+      button { flex: 1 1 auto; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>AI Writing & Drawing Board</h1>
+    <div class="toolbar">
+      <button id="btn-brush" class="active" title="Freehand drawing mode">✏️ Brush</button>
+      <button id="btn-select" title="Select & move objects">🖱️ Select</button>
+      <button id="btn-clean" class="primary" title="Clean up handwritten text with AI">✨ Clean Writing</button>
+      <button id="btn-shape" class="primary" title="Detect & perfect shapes with AI">🔷 Perfect Shape</button>
+      <button id="btn-solve" class="primary" title="Solve the question on the board">🧮 Solve Question</button>
+      <button id="btn-clear" class="danger" title="Clear the entire board">🗑️ Clear Board</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="canvas-wrapper">
+      <canvas id="c"></canvas>
+      <div class="status" id="mode-status">Mode: Brush</div>
+    </div>
+
+    <div class="output-panel">
+      <h2>AI Response</h2>
+      <div id="ai-output"></div>
+      <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <span>Thinking with Gemini 2.5 Flash…</span>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Powered by Gemini 2.5 Flash · Fabric.js · Express
+  </footer>
+
+  <script>
+    // ---------- Canvas setup ----------
+    const wrapper = document.querySelector('.canvas-wrapper');
+
+    function resizeCanvas() {
+      const maxW = Math.min(wrapper.clientWidth - 4, 1100);
+      const h = Math.max(420, Math.min(window.innerHeight * 0.55, 620));
+      canvas.setWidth(maxW);
+      canvas.setHeight(h);
+      canvas.renderAll();
+    }
+
+    const canvas = new fabric.Canvas('c', {
+      isDrawingMode: true,
+      backgroundColor: '#ffffff',
+      selection: false
+    });
+
+    canvas.freeDrawingBrush.width = 3;
+    canvas.freeDrawingBrush.color = '#1e293b';
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // ---------- Mode toggle ----------
+    const btnBrush = document.getElementById('btn-brush');
+    const btnSelect = document.getElementById('btn-select');
+    const modeStatus = document.getElementById('mode-status');
+
+    function setMode(mode) {
+      if (mode === 'brush') {
+        canvas.isDrawingMode = true;
+        canvas.selection = false;
+        canvas.discardActiveObject();
+        canvas.renderAll();
+        btnBrush.classList.add('active');
+        btnSelect.classList.remove('active');
+        modeStatus.textContent = 'Mode: Brush';
+      } else {
+        canvas.isDrawingMode = false;
+        canvas.selection = true;
+        btnSelect.classList.add('active');
+        btnBrush.classList.remove('active');
+        modeStatus.textContent = 'Mode: Select';
+      }
+    }
+
+    btnBrush.addEventListener('click', () => setMode('brush'));
+    btnSelect.addEventListener('click', () => setMode('select'));
+
+    // ---------- Clear ----------
+    document.getElementById('btn-clear').addEventListener('click', () => {
+      if (confirm('Clear the entire board?')) {
+        canvas.clear();
+        canvas.backgroundColor = '#ffffff';
+        canvas.renderAll();
+        document.getElementById('ai-output').textContent = '';
+      }
+    });
+
+    // ---------- Helpers ----------
+    /** Remove all freehand drawing paths (the messy ink) */
+    function removeFreehandPaths() {
+      const paths = canvas.getObjects().filter(o => o.type === 'path');
+      paths.forEach(o => canvas.remove(o));
+    }
+
+    /** Remove previously added AI text / shapes so we don't stack forever */
+    function removeAIObjects() {
+      const aiObjects = canvas.getObjects().filter(o => o.aiGenerated === true);
+      aiObjects.forEach(o => canvas.remove(o));
+    }
+
+    /** Create perfect Fabric shapes from the JSON returned by Gemini */
+    function drawPerfectShapes(shapes) {
+      if (!Array.isArray(shapes)) return;
+
+      shapes.forEach(s => {
+        let obj = null;
+        const common = {
+          stroke: s.stroke || '#1e293b',
+          strokeWidth: s.strokeWidth || 3,
+          fill: s.fill || 'transparent',
+          selectable: true,
+          aiGenerated: true
+        };
+
+        switch (s.type) {
+          case 'circle':
+            obj = new fabric.Circle({
+              left: s.left || 50,
+              top: s.top || 50,
+              radius: s.radius || 40,
+              ...common
+            });
+            break;
+
+          case 'ellipse':
+            obj = new fabric.Ellipse({
+              left: s.left || 50,
+              top: s.top || 50,
+              rx: (s.width || 80) / 2,
+              ry: (s.height || 50) / 2,
+              ...common
+            });
+            break;
+
+          case 'rect':
+            obj = new fabric.Rect({
+              left: s.left || 50,
+              top: s.top || 50,
+              width: s.width || 100,
+              height: s.height || 60,
+              ...common
+            });
+            break;
+
+          case 'triangle':
+            obj = new fabric.Triangle({
+              left: s.left || 50,
+              top: s.top || 50,
+              width: s.width || 100,
+              height: s.height || 80,
+              ...common
+            });
+            break;
+
+          case 'line':
+            obj = new fabric.Line(
+              [s.x1 || 50, s.y1 || 50, s.x2 || 150, s.y2 || 50],
+              { ...common }
+            );
+            break;
+
+          default:
+            console.warn('Unknown shape type:', s.type);
+        }
+
+        if (obj) canvas.add(obj);
+      });
+    }
+
+/** Place only the FINAL ANSWER below the existing content (keep the question) */
+    function placeSolution(data) {
+      // Prefer the short finalAnswer; fall back to full solution if missing
+      const answer = (data && data.finalAnswer)
+        ? data.finalAnswer
+        : (data && data.solution ? data.solution : '');
+
+      if (!answer) return;
+
+      // Calculate bottom of current objects so we place the answer underneath
+      let maxBottom = 40;
+      canvas.getObjects().forEach(o => {
+        const bottom = (o.top || 0) + (o.getScaledHeight ? o.getScaledHeight() : (o.height || 0));
+        if (bottom > maxBottom) maxBottom = bottom;
+      });
+
+      const left = (data && typeof data.left === 'number') ? data.left : 20;
+      // Prefer Gemini's suggested top if it looks reasonable, otherwise put below content
+      let top = (data && typeof data.top === 'number') ? data.top : maxBottom + 30;
+      if (top < maxBottom + 10) top = maxBottom + 30;
+
+      // Safety: don't go off canvas
+      if (top > canvas.height - 80) top = Math.max(20, canvas.height - 120);
+
+      const textObj = new fabric.Textbox(answer, {
+        left,
+        top,
+        width: Math.min(420, canvas.width - left - 30),
+        fontSize: 22,
+        fontWeight: 'bold',
+        fill: '#0f172a',
+        fontFamily: 'Segoe UI, system-ui, sans-serif',
+        backgroundColor: 'rgba(187, 247, 208, 0.95)', // light green highlight
+        padding: 14,
+        textAlign: 'center',
+        aiGenerated: true
+      });
+      canvas.add(textObj);
+      canvas.setActiveObject(textObj);
+    }
+
+    /** Place the solution text below the existing content (keep the question) */
+    function placeSolution(data) {
+      const solution = (data && data.solution) ? data.solution : '';
+      if (!solution) return;
+
+      // Calculate bottom of current objects so we place the answer underneath
+      let maxBottom = 40;
+      canvas.getObjects().forEach(o => {
+        const bottom = (o.top || 0) + (o.getScaledHeight ? o.getScaledHeight() : (o.height || 0));
+        if (bottom > maxBottom) maxBottom = bottom;
+      });
+
+      const left = (data && typeof data.left === 'number') ? data.left : 20;
+      // Prefer Gemini's suggested top if it looks reasonable, otherwise put below content
+      let top = (data && typeof data.top === 'number') ? data.top : maxBottom + 30;
+      if (top < maxBottom + 10) top = maxBottom + 30;
+
+      // Safety: don't go off canvas
+      if (top > canvas.height - 80) top = Math.max(20, canvas.height - 120);
+
+      const textObj = new fabric.Textbox(solution, {
+        left,
+        top,
+        width: canvas.width - left - 30,
+        fontSize: 16,
+        fill: '#0f172a',
+        fontFamily: 'Segoe UI, system-ui, sans-serif',
+        backgroundColor: 'rgba(224, 242, 254, 0.95)', // light blue so it stands out
+        padding: 12,
+        borderColor: '#38bdf8',
+        aiGenerated: true
+      });
+      canvas.add(textObj);
+      canvas.setActiveObject(textObj);
+    }
+
+    // ---------- AI actions ----------
+    const loadingEl = document.getElementById('loading');
+    const outputEl = document.getElementById('ai-output');
+    const actionButtons = [
+      document.getElementById('btn-clean'),
+      document.getElementById('btn-shape'),
+      document.getElementById('btn-solve')
+    ];
+
+    async function processCanvas(action) {
+      actionButtons.forEach(b => b.disabled = true);
+      loadingEl.classList.add('visible');
+      outputEl.textContent = '';
+
+      try {
+        const dataURL = canvas.toDataURL({
+          format: 'png',
+          quality: 0.92,
+          multiplier: 1.5
+        });
+
+        const res = await fetch('/api/process-canvas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            image: dataURL,
+            action,
+            width: canvas.width,
+            height: canvas.height
+          })
+        });
+
+        const payload = await res.json();
+
+        if (!res.ok) {
+          throw new Error(payload.error || payload.details || 'Request failed');
+        }
+
+        const structured = payload.data;
+
+        // ---- Apply the visual changes on the canvas ----
+        if (action === 'clean-text') {
+          placeCleanedText(structured);
+          outputEl.textContent = structured
+            ? (structured.cleanedText || 'No text found.')
+            : (payload.result || 'Could not parse cleaned text.');
+        }
+        else if (action === 'detect-shape') {
+          // Remove the messy freehand drawings
+          removeFreehandPaths();
+          // Draw the perfect versions
+          if (structured && Array.isArray(structured.shapes)) {
+            drawPerfectShapes(structured.shapes);
+            outputEl.textContent = structured.summary
+              || `Detected ${structured.shapes.length} shape(s) and replaced them with perfect versions.`;
+          } else {
+            outputEl.textContent = payload.result || 'Could not detect shapes.';
+          }
+        }
+        else if (action === 'solve') {
+          // Keep the original question drawings, only put the final answer on canvas
+          placeSolution(structured);
+
+          // Side panel shows the full reasoning
+          if (structured) {
+            const full = (structured.solution || '') +
+              (structured.finalAnswer ? '\n\nFinal Answer: ' + structured.finalAnswer : '');
+            outputEl.textContent = full || 'No solution generated.';
+          } else {
+            outputEl.textContent = payload.result || 'Could not parse solution.';
+          }
+        }
+
+        setMode('select'); // switch to select so user can move the new objects
+        canvas.renderAll();
+
+      } catch (err) {
+        console.error(err);
+        outputEl.textContent = 'Error: ' + (err.message || 'Something went wrong. Check the server and your API key.');
+      } finally {
+        loadingEl.classList.remove('visible');
+        actionButtons.forEach(b => b.disabled = false);
+      }
+    }
+
+    document.getElementById('btn-clean').addEventListener('click', () => processCanvas('clean-text'));
+    document.getElementById('btn-shape').addEventListener('click', () => processCanvas('detect-shape'));
+    document.getElementById('btn-solve').addEventListener('click', () => processCanvas('solve'));
+  </script>
+</body>
+</html>
