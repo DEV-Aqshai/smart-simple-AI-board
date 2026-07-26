@@ -22,9 +22,9 @@ Works on both **localhost** and **Vercel**.
 
 ```
 ├── api/
-│   └── index.js          ← Express backend (Vercel serverless function)
+│   └── index.js          
 ├── public/
-│   └── index.html        ← Frontend
+│   └── index.html        
 ├── package.json
 ├── vercel.json
 ├── .env.example
