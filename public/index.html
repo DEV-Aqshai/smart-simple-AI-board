@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Griffy&family=Rubik:ital,wght@0,300..900;1,300..900&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+  <link rel="icon" type="image/png" href="/assets/SmartBoardOne.png" />
   <style>
     :root {
       --bg: #044CBA;
@@ -42,11 +43,19 @@
       gap: 0.75rem;
     }
 
+    .hero-container {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
     .hero-head {
       font-family: "Black Ops One", system-ui;
       font-size: 2.5rem;
       font-weight: 700;
       color: var(--accent);
+      margin: 0;
+      
     }
 
     .hero-by {
@@ -235,7 +244,10 @@
 </head>
 <body>
   <header>
-    <h2 class="hero-head">Smart Board One</h2>
+    <div class="hero-container">
+      <img src="assets/SmartBoardOne.png" alt="Smart Board One" style="height: 50px; margin-right: 1rem;" />
+      <h2 class="hero-head">Smart Board One</h2>
+    </div>
     <h3 class="hero-by">By: AqshaiDev</h3>
 
     <div class="key-box">
