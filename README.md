@@ -1,3 +1,9 @@
+# **For ease of use deployed in vercel**
+Visit : smart-board-one.vercel.app
+You would still need an Gemini API key to use it
+Scroll down to check how to get Gemini API key
+
+
 # AI Writing & Drawing Board
 
 A clean AI-powered writing and drawing board using **Gemini 2.5 Flash**, **Express**, and **Fabric.js**.
