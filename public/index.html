@@ -282,7 +282,8 @@
   </div>
 
   <footer>
-    Use Gemini 2.5 Flash API key · AqshaiDev · SmartBoardOne · Works on Localhost aswell
+    <div>Use Gemini 2.5 Flash API key · AqshaiDev · SmartBoardOne · Works on Localhost aswell</div>
+    <div id="view-count" style="margin-top: 0.35rem; opacity: 0.9;">Views: loading…</div>
   </footer>
 
   <script>
@@ -562,6 +563,21 @@
     document.getElementById('btn-clean').addEventListener('click', () => processCanvas('clean-text'));
     document.getElementById('btn-shape').addEventListener('click', () => processCanvas('detect-shape'));
     document.getElementById('btn-solve').addEventListener('click', () => processCanvas('solve'));
+
+    async function loadViewCount() {
+      const el = document.getElementById('view-count');
+      if (!el) return;
+
+      try {
+        const res = await fetch('/api/view-count');
+        const payload = await res.json();
+        el.textContent = `Views: ${payload.views ?? 0}`;
+      } catch (err) {
+        el.textContent = 'Views: unavailable';
+      }
+    }
+
+    loadViewCount();
   </script>
 </body>
 </html>

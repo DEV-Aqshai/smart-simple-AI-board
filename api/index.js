@@ -5,6 +5,15 @@ const { GoogleGenAI } = require('@google/genai');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+let redisClient = null;
+let fallbackViews = 0;
+
+try {
+  const { Redis } = require('@upstash/redis');
+  redisClient = Redis.fromEnv();
+} catch (error) {
+  console.warn('Upstash Redis not configured, using local fallback counter:', error.message);
+}
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
@@ -186,6 +195,22 @@ If the board is mostly empty, use top = ${Math.round(height * 0.55)}.`;
       error: 'Failed to process canvas',
       details: error.message || String(error)
     });
+  }
+});
+
+// Simple public view counter
+app.get('/api/view-count', async (req, res) => {
+  try {
+    if (redisClient) {
+      const views = await redisClient.incr('pageviews');
+      return res.json({ views });
+    }
+
+    fallbackViews += 1;
+    return res.json({ views: fallbackViews, fallback: true });
+  } catch (error) {
+    fallbackViews += 1;
+    return res.json({ views: fallbackViews, fallback: true });
   }
 });
 
