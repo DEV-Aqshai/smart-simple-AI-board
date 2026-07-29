@@ -57,6 +57,14 @@
       margin: 0;
       
     }
+    .hero-ver {
+      font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: ver(--accent);
+      margin: 0;
+
+    }
 
     .hero-by {
       font-family: "Griffy", system-ui;
@@ -234,6 +242,25 @@
       border-top: 1px solid var(--border);
     }
 
+    .contact {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: end;
+    }
+
+    .contact-list {
+        align-items: flex-start;
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        font-size: 0.9rem;
+
+    }
+
     @media (max-width: 768px) {
       header { flex-direction: column; align-items: flex-start; }
       .toolbar { width: 100%; }
@@ -246,7 +273,8 @@
   <header>
     <div class="hero-container">
       <img src="assets/SmartBoardOne.png" alt="Smart Board One" style="height: 50px; margin-right: 1rem;" />
-      <h2 class="hero-head">Smart Board One</h2>
+      <h2 class="hero-head">Smart Board One</h2>  
+      <h3 class="hero-ver">V4.0</h3>
     </div>
     <a href="https://adevz.xo.je/" target="_blank"><h3 class="hero-by">By: AqshaiDev</h3></a>
 
@@ -283,6 +311,7 @@
 
   <footer>
     <div>Use Gemini 2.5 Flash API key · AqshaiDev · SmartBoardOne · Works on Localhost aswell</div>
+    
   </footer>
 
   <script>
