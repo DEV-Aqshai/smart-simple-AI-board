@@ -1,73 +1,10 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
-const fs = require('fs');
 const { GoogleGenAI } = require('@google/genai');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-let redisClient = null;
-let fallbackViews = 0;
-
-try {
-  const { Redis } = require('@upstash/redis');
-  redisClient = Redis.fromEnv();
-} catch (error) {
-  console.warn('Upstash Redis not configured, will use vcount.json fallback:', error.message);
-}
-
-// ---------- Persistent JSON view counter ----------
-// Stored at project-root/data/vcount.json so it survives server restarts
-// (works great on localhost / a persistent host; on ephemeral serverless
-// platforms like Vercel the filesystem resets between deployments/cold
-// starts, so Redis is still the more durable option there).
-const VCOUNT_DIR = path.join(__dirname, '../data');
-const VCOUNT_PATH = path.join(VCOUNT_DIR, 'vcount.json');
-
-function ensureVCountFile() {
-  try {
-    if (!fs.existsSync(VCOUNT_DIR)) {
-      fs.mkdirSync(VCOUNT_DIR, { recursive: true });
-    }
-    if (!fs.existsSync(VCOUNT_PATH)) {
-      fs.writeFileSync(
-        VCOUNT_PATH,
-        JSON.stringify({ views: 0, updatedAt: new Date().toISOString() }, null, 2)
-      );
-    }
-  } catch (err) {
-    console.warn('Could not ensure vcount.json:', err.message);
-  }
-}
-
-function readViewsFromFile() {
-  try {
-    ensureVCountFile();
-    const raw = fs.readFileSync(VCOUNT_PATH, 'utf8');
-    const parsed = JSON.parse(raw);
-    return typeof parsed.views === 'number' ? parsed.views : 0;
-  } catch (err) {
-    console.warn('Could not read vcount.json:', err.message);
-    return null;
-  }
-}
-
-function incrementViewsInFile() {
-  try {
-    ensureVCountFile();
-    const current = readViewsFromFile() || 0;
-    const next = current + 1;
-    fs.writeFileSync(
-      VCOUNT_PATH,
-      JSON.stringify({ views: next, updatedAt: new Date().toISOString() }, null, 2)
-    );
-    return next;
-  } catch (err) {
-    console.warn('Could not write vcount.json:', err.message);
-    return null;
-  }
-}
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
@@ -249,28 +186,6 @@ If the board is mostly empty, use top = ${Math.round(height * 0.55)}.`;
       error: 'Failed to process canvas',
       details: error.message || String(error)
     });
-  }
-});
-
-// Persistent, shared view counter.
-// Priority: Redis (if configured) -> vcount.json on disk -> in-memory fallback.
-app.get('/api/view-count', async (req, res) => {
-  try {
-    if (redisClient) {
-      const views = await redisClient.incr('pageviews');
-      return res.json({ views, source: 'redis' });
-    }
-
-    const views = incrementViewsInFile();
-    if (views !== null) {
-      return res.json({ views, source: 'file' });
-    }
-
-    fallbackViews += 1;
-    return res.json({ views: fallbackViews, fallback: true, source: 'memory' });
-  } catch (error) {
-    fallbackViews += 1;
-    return res.json({ views: fallbackViews, fallback: true, source: 'memory' });
   }
 });
 
